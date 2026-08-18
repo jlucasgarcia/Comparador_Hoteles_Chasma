@@ -395,16 +395,15 @@
       });
     });
   }
-  async function persist(){
-    try{ await window.storage.set(KEY, JSON.stringify(hist)); }
+    function persist(){
+    try{ localStorage.setItem(KEY, JSON.stringify(hist)); }
     catch(e){ console.error("No se pudo guardar el historial", e); }
   }
-  async function load(){
-    try{ var r = await window.storage.get(KEY); if(r && r.value) hist = JSON.parse(r.value) || []; }
+  function load(){
+    try{ var r = localStorage.getItem(KEY); if(r) hist = JSON.parse(r) || []; }
     catch(e){ hist = []; }
     drawHist();
   }
-
   $("save").addEventListener("click", function(){
     if(!last || (!last.A.total && !last.B.total)) return;
     hist.unshift({
