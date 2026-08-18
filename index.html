@@ -93,6 +93,30 @@
   button.act.ghost:hover{background:var(--rule);color:var(--ink)}
   :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
+  .scen{background:var(--card);border:1px solid var(--rule);border-top:none;padding:20px 22px 22px}
+  .scenhead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+  .scentitle{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .vend{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .vend input{width:66px;font-family:var(--mono);font-size:14px;font-weight:600;padding:4px 7px;border:1px solid var(--ink);background:#fff;color:var(--ink);text-align:right}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+  .scard{padding:14px 16px;border-left:1px dotted var(--rule)}
+  .scard:first-child{border-left:0;padding-left:0}
+  .scard h4{margin:0 0 3px;font-size:12px;font-weight:800;letter-spacing:.05em}
+  .scard .sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:11px;min-height:24px;line-height:1.35}
+  .scard .price{font-family:var(--mono);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em;display:block;margin-bottom:9px}
+  .scard dl{margin:0;font-family:var(--mono);font-size:12px}
+  .scard dl div{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px dotted var(--rule)}
+  .scard dl div:last-child{border-bottom:0}
+  .scard dt{color:var(--muted);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;align-self:center}
+  .scard dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600}
+  .scard .ref{border-left-width:0;background:transparent}
+  .flag{
+    font-family:var(--mono);font-size:11px;line-height:1.6;margin-top:16px;padding:11px 14px;
+    border-left:3px solid var(--a);background:rgba(168,44,27,.06);color:#4A463D;
+  }
+  .flag.ok{border-left-color:#1F6B3A;background:rgba(31,107,58,.06)}
+  .flag b{font-variant-numeric:tabular-nums}
+
   details.box{margin-top:26px;background:var(--card);border:1px solid var(--rule)}
   details.box>summary{cursor:pointer;padding:13px 20px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);list-style:none}
   details.box>summary::-webkit-details-marker{display:none}
@@ -200,6 +224,17 @@
     </div>
   </section>
 
+  <section class="scen">
+    <div class="scenhead">
+      <span class="scentitle">Margen de maniobra con <span id="scenA">Chasma</span></span>
+      <label class="vend">Comisión del vendedor sobre la comisión limpia
+        <input type="text" id="vendPct" inputmode="decimal" value="10">%
+      </label>
+    </div>
+    <div class="cards" id="cards"></div>
+    <div class="flag" id="flag"></div>
+  </section>
+
   <details class="box">
     <summary>Tratamiento del IVA</summary>
     <div class="boxbody">
@@ -304,6 +339,19 @@
       '<div class="sub"><dt>Markup efectivo</dt><dd>'+pct(r.markupPct)+'</dd></div>';
   }
 
+  // comisión limpia que queda si vendo a precio P manteniendo el neto del operador
+  function comisionAlPrecio(P, neto, iva, ivaMode){
+    var i = iva/100, mk = P - neto;
+    if(mk <= 0) return 0;
+    return (ivaMode==="add") ? mk/(1+i) : mk*(1-i);
+  }
+  // precio necesario para que la comisión limpia llegue a un objetivo
+  function precioParaComision(objetivo, neto, iva, ivaMode){
+    var i = iva/100;
+    if(objetivo <= 0) return neto;
+    return neto + ((ivaMode==="add") ? objetivo*(1+i) : (i<1 ? objetivo/(1-i) : objetivo));
+  }
+
   var last = null;
 
   function render(){
@@ -311,6 +359,7 @@
     var nB = $("nameB").value.trim() || "Operador B";
     $("endL").textContent = nA; $("endR").textContent = nB;
     $("cfgTitleA").textContent = nA; $("cfgTitleB").textContent = nB;
+    $("scenA").textContent = nA;
     $("curA").textContent = inputMode.A==="neto" ? "USD" : "%";
     $("curB").textContent = inputMode.B==="neto" ? "USD" : "%";
 
@@ -320,33 +369,81 @@
     renderRows($("rowsA"), A, "--a");
     renderRows($("rowsB"), B, "--b");
 
-    var dComision = A.comision - B.comision;  // >0 → A deja más comisión
-    var dNeto     = B.neto - A.neto;          // >0 → el neto de A es más barato
-    var resultado = dComision + dNeto;        // >0 → conviene A
-    var dTotal    = B.total - A.total;        // >0 → el pasajero paga más en B
+    // Ganancia real: la comisión limpia que queda vendiendo cada uno a su publicado.
+    var dComision = A.comision - B.comision;   // >0 → A deja más plata
+    var dNeto     = B.neto - A.neto;           // >0 → el neto de A es más barato
+    var dTotal    = B.total - A.total;         // >0 → el pasajero paga más en B
+    var combinado = dComision + dNeto;         // métrica original de la planilla
 
-    var gana = resultado>=0 ? nA : nB;
-    var color = resultado>=0 ? "var(--a)" : "var(--b)";
+    var gana = dComision>=0 ? nA : nB;
+    var color = dComision>=0 ? "var(--a)" : "var(--b)";
     $("stamp").style.color = color;
-    $("stampWho").textContent = Math.abs(resultado)<0.005 ? "Empate técnico" : "A favor de "+gana;
-    $("stampAmt").textContent = "USD "+money(Math.abs(resultado));
+    $("stampWho").textContent = Math.abs(dComision)<0.005 ? "Empate técnico" : "Gana más con "+gana;
+    $("stampAmt").textContent = "USD "+money(Math.abs(dComision));
 
     $("breakdown").innerHTML =
-      'Comisión: <b class="'+(dComision>=0?'pos':'neg')+'">'+signed(dComision)+'</b> para '+nA+'<br>'+
-      'Neto: <b class="'+(dNeto>=0?'pos':'neg')+'">'+signed(dNeto)+'</b> más barato en '+nA+'<br>'+
-      'Total al pasajero: <b>'+signed(-dTotal)+'</b> en '+nA+' contra '+nB;
+      'Comisión limpia: <b>'+money(A.comision)+'</b> contra <b>'+money(B.comision)+'</b><br>'+
+      'Total al pasajero: <b class="'+(dTotal>=0?'pos':'neg')+'">'+signed(-dTotal)+'</b> en '+nA+' contra '+nB+'<br>'+
+      'Métrica combinada de la planilla: <b>'+money(Math.abs(combinado))+'</b> a favor de '+(combinado>=0?nA:nB);
 
-    var base = Math.max(A.total, B.total, 1);
-    var w = Math.min(Math.abs(resultado)/(base*0.15), 1)*50;
-    var bar = $("bar");
+    var bar = $("bar"), refBase = Math.max(A.comision, B.comision, 1);
+    var w = Math.min(Math.abs(dComision)/refBase, 1)*50;
     bar.style.background = color;
-    if(resultado>=0){ bar.style.right="50%"; bar.style.left=(50-w)+"%"; }
+    if(dComision>=0){ bar.style.right="50%"; bar.style.left=(50-w)+"%"; }
     else { bar.style.left="50%"; bar.style.right=(50-w)+"%"; }
 
-    last = {nA:nA, nB:nB, A:A, B:B, resultado:resultado, dComision:dComision, dNeto:dNeto};
+    // ---------- escenarios de precio con el operador A ----------
+    var vp = parseNum($("vendPct").value)/100;
+    var ivaA = parseNum($("ivaA").value), imA = ivaMode("A");
+
+    var pIgual = B.total;                                              // vender A al precio publicado de B
+    var cIgual = comisionAlPrecio(pIgual, A.neto, ivaA, imA);
+    var pPiso  = precioParaComision(B.comision, A.neto, ivaA, imA);    // precio mínimo que iguala la comisión de B
+
+    var esc = [
+      {t:"A tu publicado", s:"Precio actual de "+nA, p:A.total, c:A.comision},
+      {t:"Igualando a "+nB, s:"Mismo precio al pasajero, mejor neto", p:pIgual, c:cIgual},
+      {t:"Piso de descuento", s:"Lo más bajo que podés ir ganando lo mismo que con "+nB, p:pPiso, c:B.comision}
+    ];
+
+    $("cards").innerHTML = esc.map(function(e){
+      var vend = e.c*vp, ag = e.c - vend;
+      return '<div class="scard">'+
+        '<h4>'+e.t+'</h4><span class="sub">'+e.s+'</span>'+
+        '<span class="price">'+money(e.p)+'</span>'+
+        '<dl>'+
+          '<div><dt>Comisión limpia</dt><dd>'+money(e.c)+'</dd></div>'+
+          '<div><dt>Vendedor</dt><dd>'+money(vend)+'</dd></div>'+
+          '<div><dt>Agencia</dt><dd>'+money(ag)+'</dd></div>'+
+        '</dl></div>';
+    }).join("");
+
+    // ---------- lectura de incentivos ----------
+    var vendA = A.comision*vp, vendB = B.comision*vp;
+    var dVend = vendA - vendB;
+    var alineado = (dComision>=0) === (dVend>=0);
+    var margen = A.total - pPiso;
+    var f = $("flag");
+    f.className = "flag" + (alineado ? " ok" : "");
+    if(!A.total || !B.total){
+      f.innerHTML = "Cargá los dos totales para ver los escenarios.";
+    } else if(alineado){
+      f.innerHTML =
+        'Incentivos alineados: al vendedor le conviene '+gana+' igual que a la agencia ('+
+        money(Math.max(vendA,vendB))+' contra '+money(Math.min(vendA,vendB))+').<br>'+
+        (margen>0
+          ? 'Contra el publicado de '+nB+' tenés <b>'+money(B.total - pPiso)+'</b> de descuento disponible sin ganar menos que con '+nB+'.'
+          : 'Sin margen de descuento: el publicado de '+nA+' ya está por debajo del piso.');
+    } else {
+      f.innerHTML =
+        '<b>Incentivo cruzado.</b> A la agencia le conviene '+gana+' pero al vendedor le rinde más '+(dVend>=0?nA:nB)+'. '+
+        'Revisá la base de cálculo de la comisión del vendedor.';
+    }
+
+    last = {nA:nA, nB:nB, A:A, B:B, resultado:combinado, dComision:dComision, dNeto:dNeto};
   }
 
-  ["totA","comA","ivaA","totB","comB","ivaB","nameA","nameB"].forEach(function(id){
+  ["totA","comA","ivaA","totB","comB","ivaB","nameA","nameB","vendPct"].forEach(function(id){
     $(id).addEventListener("input", render);
   });
   Array.prototype.forEach.call(document.querySelectorAll('input[type=radio]'), function(r){
