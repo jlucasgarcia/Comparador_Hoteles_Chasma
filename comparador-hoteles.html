@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparador de hoteles — Chasma contra otro operador</title>
+<style>
+  :root{
+    --paper:#EAE7DE;
+    --card:#FBFAF6;
+    --ink:#191712;
+    --muted:#8A857A;
+    --rule:#CFC9BA;
+    --a:#A82C1B;
+    --b:#1C5B62;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    background-image:repeating-linear-gradient(0deg, rgba(0,0,0,.018) 0 1px, transparent 1px 4px);
+    color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;
+    padding:24px 16px 64px;
+  }
+  .wrap{max-width:960px;margin:0 auto}
+
+  header.tick{
+    background:var(--card);border:1px solid var(--rule);border-bottom:none;
+    padding:18px 22px 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  }
+  .brand{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+  h1{margin:4px 0 0;font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .stub{font-family:var(--mono);font-size:11px;line-height:1.6;text-align:right;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+
+  .panels{background:var(--card);border:1px solid var(--rule);display:grid;grid-template-columns:1fr 1px 1fr}
+  .perf{background-image:radial-gradient(circle at center, var(--rule) 0 1.6px, transparent 1.9px);background-size:1px 11px;background-repeat:repeat-y}
+  .col{padding:18px 22px 22px}
+  .col.a{--c:var(--a)} .col.b{--c:var(--b)}
+
+  .opname{
+    font-size:15px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--c);
+    border:0;background:transparent;font-family:var(--sans);padding:0 0 4px;width:100%;
+    border-bottom:1px dashed transparent;outline:0;
+  }
+  input.opname:hover{border-bottom-color:var(--rule)}
+  input.opname:focus{border-bottom-color:var(--c)}
+  .opnote{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;display:block;margin:2px 0 14px}
+
+  .lbl{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+  .inputline{display:flex;align-items:stretch;border:1.5px solid var(--ink);background:#fff}
+  .cur{font-family:var(--mono);font-size:12px;padding:0 9px;color:var(--muted);border-right:1px solid var(--rule);display:flex;align-items:center}
+  .big{flex:1;min-width:0;border:0;outline:0;background:transparent;font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.02em;padding:9px 10px;color:var(--ink)}
+  .inputline:focus-within{border-color:var(--c);box-shadow:0 0 0 3px color-mix(in srgb, var(--c) 18%, transparent)}
+
+  .tabs{display:flex;gap:0;margin:16px 0 5px}
+  .tabs button{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+    padding:5px 10px;border:1px solid var(--rule);background:transparent;color:var(--muted);cursor:pointer;margin-right:-1px;
+  }
+  .tabs button[aria-pressed=true]{background:var(--c);border-color:var(--c);color:#fff}
+  .inputline.sm{border-width:1px}
+  .inputline.sm .big{font-size:17px;padding:6px 9px}
+
+  dl.rows{margin:18px 0 0;font-family:var(--mono);font-size:13px}
+  dl.rows div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dotted var(--rule)}
+  dl.rows div:last-child{border-bottom:0}
+  dl.rows dt{color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.14em;align-self:center}
+  dl.rows dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600}
+  dl.rows div.hi dd{font-size:15px}
+  dl.rows div.sub dd{font-weight:400;color:#5C574C}
+
+  .verdict{background:var(--card);border:1px solid var(--rule);border-top:none;padding:22px}
+  .balance{position:relative;height:34px;border-bottom:1px solid var(--rule);margin-bottom:18px}
+  .balance .axis{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--ink)}
+  .balance .bar{position:absolute;top:9px;height:16px;transition:all .28s cubic-bezier(.2,.7,.3,1)}
+  .balance .end{position:absolute;top:2px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .balance .end.l{left:0}.balance .end.r{right:0}
+
+  .stampline{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  .stamp{border:2.5px double currentColor;padding:9px 16px;transform:rotate(-2.2deg);font-family:var(--mono);text-transform:uppercase;letter-spacing:.14em;display:inline-flex;flex-direction:column;gap:2px}
+  .stamp .who{font-size:10px}
+  .stamp .amt{font-size:24px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .breakdown{font-family:var(--mono);font-size:12px;color:#4A463D;line-height:1.85}
+  .breakdown b{font-variant-numeric:tabular-nums}
+  .pos{color:#1F6B3A}.neg{color:#A82C1B}
+
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  button.act{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:9px 14px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer}
+  button.act:hover{background:var(--ink);color:var(--card)}
+  button.act.ghost{border-color:var(--rule);color:var(--muted)}
+  button.act.ghost:hover{background:var(--rule);color:var(--ink)}
+  :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  details.box{margin-top:26px;background:var(--card);border:1px solid var(--rule)}
+  details.box>summary{cursor:pointer;padding:13px 20px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);list-style:none}
+  details.box>summary::-webkit-details-marker{display:none}
+  details.box>summary::before{content:"+ "}
+  details.box[open]>summary::before{content:"− "}
+  .boxbody{padding:6px 20px 20px;border-top:1px dotted var(--rule)}
+  .cfggrid{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  .cfggrid h3{font-size:11px;font-family:var(--mono);letter-spacing:.16em;text-transform:uppercase;margin:14px 0 8px}
+  .cfggrid .a h3{color:var(--a)} .cfggrid .b h3{color:var(--b)}
+  .cfggrid input.iva{width:90px;font-family:var(--mono);font-size:14px;padding:6px 8px;border:1px solid var(--rule);background:#fff;color:var(--ink)}
+  .radio{font-family:var(--mono);font-size:11px;line-height:1.9;color:#4A463D;display:block}
+  .radio input{margin-right:7px}
+  .hint{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6}
+
+  table.hist{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+  table.hist th{text-align:right;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:400;padding:8px 6px;border-bottom:1px solid var(--rule)}
+  table.hist th:first-child,table.hist td:first-child{text-align:left}
+  table.hist td{padding:8px 6px;border-bottom:1px dotted var(--rule);text-align:right;font-variant-numeric:tabular-nums}
+  table.hist td.del{width:1%}
+  table.hist td.del button{padding:2px 7px;font-size:10px;border-width:1px}
+  .empty{font-family:var(--mono);font-size:12px;color:var(--muted);padding:14px 0}
+
+  @media (max-width:760px){
+    .panels{grid-template-columns:1fr}
+    .perf{height:1px;background-size:11px 1px;background-repeat:repeat-x}
+    .cfggrid{grid-template-columns:1fr;gap:6px}
+    .stub{text-align:left}
+    .big{font-size:22px}
+    table.hist{font-size:11px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="tick">
+    <div>
+      <div class="brand">Hotelería · comparación por reserva</div>
+      <h1>Chasma contra el otro operador</h1>
+    </div>
+    <div class="stub">Total publicado<br>y comisión de cada uno</div>
+  </header>
+
+  <section class="panels">
+    <div class="col a">
+      <input class="opname" id="nameA" value="Chasma" aria-label="Nombre del operador A">
+      <span class="opnote" id="noteA"></span>
+
+      <span class="lbl">Total publicado</span>
+      <span class="inputline"><span class="cur">USD</span><input class="big" type="text" id="totA" inputmode="decimal" placeholder="0,00" value="1395,83"></span>
+
+      <div class="tabs" role="group" aria-label="Cómo cargar la comisión de A">
+        <button type="button" data-t="A" data-m="com" aria-pressed="true">Comisión %</button>
+        <button type="button" data-t="A" data-m="neto" aria-pressed="false">Neto USD</button>
+      </div>
+      <span class="inputline sm"><span class="cur" id="curA">%</span><input class="big" type="text" id="comA" inputmode="decimal" placeholder="0,00" value="14,28"></span>
+
+      <dl class="rows" id="rowsA"></dl>
+    </div>
+
+    <div class="perf" aria-hidden="true"></div>
+
+    <div class="col b">
+      <input class="opname" id="nameB" value="TipTravel" list="ops" aria-label="Nombre del operador B">
+      <datalist id="ops">
+        <option value="TipTravel"><option value="Delfos"><option value="Mitika"><option value="OLA">
+        <option value="TBO Hotels"><option value="Travel Compositor"><option value="Hotelbeds"><option value="Restel">
+      </datalist>
+      <span class="opnote" id="noteB"></span>
+
+      <span class="lbl">Total publicado</span>
+      <span class="inputline"><span class="cur">USD</span><input class="big" type="text" id="totB" inputmode="decimal" placeholder="0,00" value="1348"></span>
+
+      <div class="tabs" role="group" aria-label="Cómo cargar la comisión de B">
+        <button type="button" data-t="B" data-m="com" aria-pressed="true">Comisión %</button>
+        <button type="button" data-t="B" data-m="neto" aria-pressed="false">Neto USD</button>
+      </div>
+      <span class="inputline sm"><span class="cur" id="curB">%</span><input class="big" type="text" id="comB" inputmode="decimal" placeholder="0,00" value="15"></span>
+
+      <dl class="rows" id="rowsB"></dl>
+    </div>
+  </section>
+
+  <section class="verdict">
+    <div class="balance">
+      <div class="end l" id="endL">Chasma</div>
+      <div class="end r" id="endR">TipTravel</div>
+      <div class="axis"></div>
+      <div class="bar" id="bar"></div>
+    </div>
+
+    <div class="stampline">
+      <div class="stamp" id="stamp">
+        <span class="who" id="stampWho">A favor de</span>
+        <span class="amt" id="stampAmt">USD 0,00</span>
+      </div>
+      <div class="breakdown" id="breakdown"></div>
+    </div>
+
+    <div class="actions">
+      <button class="act" id="save">Guardar comparación</button>
+      <button class="act ghost" id="swap">Invertir totales</button>
+      <button class="act ghost" id="clearIn">Limpiar</button>
+    </div>
+  </section>
+
+  <details class="box">
+    <summary>Tratamiento del IVA</summary>
+    <div class="boxbody">
+      <div class="cfggrid">
+        <div class="a">
+          <h3 id="cfgTitleA">Chasma</h3>
+          <span class="lbl">IVA %</span>
+          <input class="iva" type="text" id="ivaA" inputmode="decimal" value="21">
+          <label class="radio"><input type="radio" name="modeA" value="add" checked>Se suma sobre la comisión</label>
+          <label class="radio"><input type="radio" name="modeA" value="inc">Ya viene dentro del descuento</label>
+        </div>
+        <div class="b">
+          <h3 id="cfgTitleB">TipTravel</h3>
+          <span class="lbl">IVA %</span>
+          <input class="iva" type="text" id="ivaB" inputmode="decimal" value="21">
+          <label class="radio"><input type="radio" name="modeB" value="add">Se suma sobre la comisión</label>
+          <label class="radio"><input type="radio" name="modeB" value="inc" checked>Ya viene dentro del descuento</label>
+        </div>
+      </div>
+      <p class="hint">
+        “Se suma sobre la comisión”: el porcentaje que cargás es la comisión pura y el impuesto se calcula aparte sobre ella.
+        “Ya viene dentro”: el porcentaje es el descuento completo sobre el total y adentro está el impuesto.
+        Si el operador no discrimina impuesto, poné IVA en 0.
+      </p>
+    </div>
+  </details>
+
+  <details class="box" open>
+    <summary>Comparaciones guardadas</summary>
+    <div class="boxbody" id="histBody"></div>
+  </details>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // Acepta "1395,83", "1395.83", "1.395,83" y "1,395.83"
+  function parseNum(raw){
+    if(raw==null) return 0;
+    var s = String(raw).trim().replace(/\s|USD|\$|%/gi,"");
+    if(!s) return 0;
+    var lc = s.lastIndexOf(","), ld = s.lastIndexOf(".");
+    if(lc>-1 && ld>-1){ s = (lc>ld) ? s.replace(/\./g,"").replace(",",".") : s.replace(/,/g,""); }
+    else if(lc>-1){ s = (s.split(",").length>2) ? s.replace(/,/g,"") : s.replace(",","."); }
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+  var f2 = new Intl.NumberFormat("es-AR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  function money(n){ return f2.format(n); }
+  function pct(n){ return f2.format(n)+"%"; }
+  function signed(n){ return (n>0?"+":n<0?"−":"")+money(Math.abs(n)); }
+  var $ = function(id){ return document.getElementById(id); };
+
+  // estado de carga por columna: "com" (porcentaje) o "neto" (monto)
+  var inputMode = {A:"com", B:"com"};
+
+  // add: comision = bruta% del total, impuesto = comision * iva
+  // inc: markup   = bruta% del total, impuesto = markup * iva, comision = markup - impuesto
+  function calc(total, bruta, iva, ivaMode){
+    var b = bruta/100, i = iva/100, comision, impuesto;
+    if(ivaMode==="add"){ comision = total*b; impuesto = comision*i; }
+    else { var mk = total*b; impuesto = mk*i; comision = mk - impuesto; }
+    var neto = total - comision - impuesto;
+    return {
+      total:total, neto:neto, comision:comision, impuesto:impuesto,
+      comisionPct: total ? comision/total*100 : 0,
+      markupPct:   total ? (comision+impuesto)/total*100 : 0,
+      bruta:bruta
+    };
+  }
+
+  // deriva el % bruto a partir de un neto cargado a mano
+  function brutaDesdeNeto(total, neto, iva, ivaMode){
+    if(!total) return 0;
+    var i = iva/100, mk = total - neto;
+    if(mk <= 0) return 0;
+    return (ivaMode==="add" ? (mk/(1+i)) : mk) / total * 100;
+  }
+
+  function ivaMode(t){
+    var r = document.querySelector('input[name="mode'+t+'"]:checked');
+    return r ? r.value : "add";
+  }
+
+  function readCol(t){
+    var total = parseNum($("tot"+t).value);
+    var iva   = parseNum($("iva"+t).value);
+    var im    = ivaMode(t);
+    var raw   = parseNum($("com"+t).value);
+    var bruta = (inputMode[t]==="neto") ? brutaDesdeNeto(total, raw, iva, im) : raw;
+    return calc(total, bruta, iva, im);
+  }
+
+  function renderRows(el, r, cssvar){
+    el.innerHTML =
+      '<div class="hi"><dt>Neto</dt><dd>'+money(r.neto)+'</dd></div>'+
+      '<div class="hi"><dt>Comisión</dt><dd style="color:var('+cssvar+')">'+money(r.comision)+'</dd></div>'+
+      '<div class="sub"><dt>Impuesto</dt><dd>'+money(r.impuesto)+'</dd></div>'+
+      '<div class="sub"><dt>Comisión %</dt><dd>'+pct(r.comisionPct)+'</dd></div>'+
+      '<div class="sub"><dt>Markup efectivo</dt><dd>'+pct(r.markupPct)+'</dd></div>';
+  }
+
+  var last = null;
+
+  function render(){
+    var nA = $("nameA").value.trim() || "Operador A";
+    var nB = $("nameB").value.trim() || "Operador B";
+    $("endL").textContent = nA; $("endR").textContent = nB;
+    $("cfgTitleA").textContent = nA; $("cfgTitleB").textContent = nB;
+    $("curA").textContent = inputMode.A==="neto" ? "USD" : "%";
+    $("curB").textContent = inputMode.B==="neto" ? "USD" : "%";
+
+    var A = readCol("A"), B = readCol("B");
+    $("noteA").textContent = "markup "+pct(A.markupPct);
+    $("noteB").textContent = "markup "+pct(B.markupPct);
+    renderRows($("rowsA"), A, "--a");
+    renderRows($("rowsB"), B, "--b");
+
+    var dComision = A.comision - B.comision;  // >0 → A deja más comisión
+    var dNeto     = B.neto - A.neto;          // >0 → el neto de A es más barato
+    var resultado = dComision + dNeto;        // >0 → conviene A
+    var dTotal    = B.total - A.total;        // >0 → el pasajero paga más en B
+
+    var gana = resultado>=0 ? nA : nB;
+    var color = resultado>=0 ? "var(--a)" : "var(--b)";
+    $("stamp").style.color = color;
+    $("stampWho").textContent = Math.abs(resultado)<0.005 ? "Empate técnico" : "A favor de "+gana;
+    $("stampAmt").textContent = "USD "+money(Math.abs(resultado));
+
+    $("breakdown").innerHTML =
+      'Comisión: <b class="'+(dComision>=0?'pos':'neg')+'">'+signed(dComision)+'</b> para '+nA+'<br>'+
+      'Neto: <b class="'+(dNeto>=0?'pos':'neg')+'">'+signed(dNeto)+'</b> más barato en '+nA+'<br>'+
+      'Total al pasajero: <b>'+signed(-dTotal)+'</b> en '+nA+' contra '+nB;
+
+    var base = Math.max(A.total, B.total, 1);
+    var w = Math.min(Math.abs(resultado)/(base*0.15), 1)*50;
+    var bar = $("bar");
+    bar.style.background = color;
+    if(resultado>=0){ bar.style.right="50%"; bar.style.left=(50-w)+"%"; }
+    else { bar.style.left="50%"; bar.style.right=(50-w)+"%"; }
+
+    last = {nA:nA, nB:nB, A:A, B:B, resultado:resultado, dComision:dComision, dNeto:dNeto};
+  }
+
+  ["totA","comA","ivaA","totB","comB","ivaB","nameA","nameB"].forEach(function(id){
+    $(id).addEventListener("input", render);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('input[type=radio]'), function(r){
+    r.addEventListener("change", render);
+  });
+
+  // cambio entre cargar comisión % o neto: convierte el valor para no perder el dato
+  Array.prototype.forEach.call(document.querySelectorAll(".tabs button"), function(btn){
+    btn.addEventListener("click", function(){
+      var t = btn.getAttribute("data-t"), m = btn.getAttribute("data-m");
+      if(inputMode[t] === m) return;
+      var cur = readCol(t);
+      inputMode[t] = m;
+      $("com"+t).value = (m==="neto") ? money(cur.neto) : f2.format(cur.bruta);
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs button[data-t="'+t+'"]'), function(o){
+        o.setAttribute("aria-pressed", o.getAttribute("data-m")===m ? "true" : "false");
+      });
+      render();
+    });
+  });
+
+  // ---------- historial persistente ----------
+  var KEY = "comparaciones-hoteles-chasma";
+  var hist = [];
+
+  function drawHist(){
+    if(!hist.length){ $("histBody").innerHTML = '<div class="empty">Todavía no guardaste ninguna comparación.</div>'; return; }
+    var rows = hist.map(function(h,i){
+      var col = h.resultado>=0 ? "var(--a)" : "var(--b)";
+      var win = h.resultado>=0 ? h.nA : h.nB;
+      return '<tr>'+
+        '<td>'+h.fecha+'</td>'+
+        '<td>'+h.nA+' '+money(h.totA)+' · '+f2.format(h.pctA)+'%</td>'+
+        '<td>'+h.nB+' '+money(h.totB)+' · '+f2.format(h.pctB)+'%</td>'+
+        '<td>'+signed(h.dComision)+'</td>'+
+        '<td>'+signed(h.dNeto)+'</td>'+
+        '<td style="color:'+col+';font-weight:700">'+money(Math.abs(h.resultado))+' '+win+'</td>'+
+        '<td class="del"><button class="act ghost" data-i="'+i+'">Borrar</button></td>'+
+      '</tr>';
+    }).join("");
+    $("histBody").innerHTML =
+      '<table class="hist"><thead><tr><th>Fecha</th><th>Operador A</th><th>Operador B</th><th>Δ Comisión</th><th>Δ Neto</th><th>Resultado</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+    Array.prototype.forEach.call($("histBody").querySelectorAll("button[data-i]"), function(b){
+      b.addEventListener("click", function(){
+        hist.splice(parseInt(b.getAttribute("data-i"),10),1); drawHist(); persist();
+      });
+    });
+  }
+  async function persist(){
+    try{ await window.storage.set(KEY, JSON.stringify(hist)); }
+    catch(e){ console.error("No se pudo guardar el historial", e); }
+  }
+  async function load(){
+    try{ var r = await window.storage.get(KEY); if(r && r.value) hist = JSON.parse(r.value) || []; }
+    catch(e){ hist = []; }
+    drawHist();
+  }
+
+  $("save").addEventListener("click", function(){
+    if(!last || (!last.A.total && !last.B.total)) return;
+    hist.unshift({
+      fecha: new Date().toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit",year:"2-digit"}),
+      nA:last.nA, nB:last.nB,
+      totA:last.A.total, totB:last.B.total,
+      pctA:last.A.comisionPct, pctB:last.B.comisionPct,
+      dComision:last.dComision, dNeto:last.dNeto, resultado:last.resultado
+    });
+    hist = hist.slice(0,40); drawHist(); persist();
+  });
+  $("swap").addEventListener("click", function(){
+    var t = $("totA").value; $("totA").value = $("totB").value; $("totB").value = t; render();
+  });
+  $("clearIn").addEventListener("click", function(){
+    $("totA").value=""; $("totB").value=""; render(); $("totA").focus();
+  });
+
+  render();
+  load();
+})();
+</script>
+</body>
+</html>
